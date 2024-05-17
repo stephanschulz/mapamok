@@ -6,9 +6,10 @@
 #include "ofMain.h"
 #include "ofAppGLFWWindow.h"
 #include "ofxAssimpModelLoader.h"
-#include "ofxUI.h"
+#include "ofxGui.h"
+#include "ofxDropdown.h"
 
-#include "Mapamok.h"
+#include "SharedCode/Mapamok.h"
 #include "DraggablePoints.h"
 #include "MeshUtils.h"
 
@@ -24,9 +25,9 @@ public:
 
 class ofApp : public ofBaseApp {
 public:
-    ofxUICanvas* gui;
-    ofxUIRadio* renderMode;
     
+    ofxPanel gui;
+    bool bShowGui = true;
     Mapamok mapamok;
     
     const float cornerRatio = .1;
@@ -34,11 +35,15 @@ public:
     const float mergeTolerance = .001;
     const float selectionMergeTolerance = .01;
     
-    bool editToggle = true;
-    bool loadButton = false;
-    bool saveButton = false;
-    float backgroundBrightness = 0;
-    bool useShader = false;
+    ofParameter<bool> editToggle;
+    ofParameter<bool> loadButton;
+    ofParameter<bool> saveButton;
+    
+    ofParameter<int> renderModes; // = {"drawMode", 0};
+    unique_ptr<ofxIntDropdown> uidDropdown_intRenderModes;
+
+    ofParameter<int> backgroundBrightness;
+    ofParameter<bool> useShader;
     
     ofVboMesh mesh, cornerMesh;
     ofEasyCam cam;
@@ -68,65 +73,74 @@ public:
         RENDER_MODE_WIREFRAME_OCCLUDED
     };
     void setupGui() {
-        gui = new ofxUICanvas();
+//        ofColor
+//        cb(64, 192),
+//        co(192, 192),
+//        coh(128, 192),
+//        cf(240, 255),
+//        cfh(128, 255),
+//        cp(96, 192),
+//        cpo(255, 192);
+      
+
         
-        ofColor
-        cb(64, 192),
-        co(192, 192),
-        coh(128, 192),
-        cf(240, 255),
-        cfh(128, 255),
-        cp(96, 192),
-        cpo(255, 192);
-        gui->setUIColors(cb, co, coh, cf, cfh, cp, cpo);
+        gui.setup("Calibration","gui.json");
+        gui.add(editToggle.set("editToggle",true));
+        gui.add(loadButton.set("loadButton",false));
+        gui.add(saveButton.set("saveButton",false));
+
+//        gui->addLabel("Render");
+//        vector<string> renderModes;
+//        renderModes.push_back("Faces");
+//        renderModes.push_back("Depth Edges");
+//        renderModes.push_back("Full wireframe");
+//        renderModes.push_back("Occluded wireframe");
+//        renderMode = gui->addRadio("Render", renderModes, OFX_UI_ORIENTATION_VERTICAL, OFX_UI_FONT_MEDIUM);
+//        renderMode->activateToggle(renderModes[0]);
         
-        gui->addSpacer();
-        gui->addLabel("Calibration");
-        gui->addToggle("Edit", &editToggle);
-        gui->addButton("Load", &loadButton);
-        gui->addButton("Save", &saveButton);
+        renderModes.setName("renderModes");
+        uidDropdown_intRenderModes = make_unique<ofxIntDropdown>(renderModes);
+        uidDropdown_intRenderModes->add(0, "Faces");
+        uidDropdown_intRenderModes->add(1, "Depth Edges");
+        uidDropdown_intRenderModes->add(2, "Full wireframe");
+        uidDropdown_intRenderModes->add(3, "Occluded wireframe");
+        uidDropdown_intRenderModes->disableMultipleSelection();
+        uidDropdown_intRenderModes->enableCollapseOnSelection();
         
-        gui->addSpacer();
-        gui->addLabel("Render");
-        vector<string> renderModes;
-        renderModes.push_back("Faces");
-        renderModes.push_back("Depth Edges");
-        renderModes.push_back("Full wireframe");
-        renderModes.push_back("Occluded wireframe");
-        renderMode = gui->addRadio("Render", renderModes, OFX_UI_ORIENTATION_VERTICAL, OFX_UI_FONT_MEDIUM);
-        renderMode->activateToggle(renderModes[0]);
+//        gui->addSpacer();
         
-        gui->addSpacer();
-        gui->addMinimalSlider("Background", 0, 255, &backgroundBrightness);
-        gui->addToggle("Use shader", &useShader);
         
-        gui->autoSizeToFitWidgets();
+//        gui->addMinimalSlider("Background", 0, 255, &backgroundBrightness);
+//        gui->addToggle("Use shader", &useShader);
+        gui.add(backgroundBrightness.set("bgBright",127,0,255));
+        gui.add(useShader.set("useShader",false));
+//        gui->autoSizeToFitWidgets();
     }
-    int getSelection(ofxUIRadio* radio) {
-        vector<ofxUIToggle*> toggles = radio->getToggles();
-        for(int i = 0; i < toggles.size(); i++) {
-            if(toggles[i]->getValue()) {
-                return i;
-            }
-        }
-        return -1;
-    }
+//    int getSelection(ofxUIRadio* radio) {
+//        vector<ofxUIToggle*> toggles = radio->getToggles();
+//        for(int i = 0; i < toggles.size(); i++) {
+//            if(toggles[i]->getValue()) {
+//                return i;
+//            }
+//        }
+//        return -1;
+//    }
     void render() {
-        int renderModeSelection = getSelection(renderMode);
-        if(renderModeSelection == RENDER_MODE_FACES) {
+//        int renderModeSelection = getSelection(renderMode);
+        if(renderModes.get() == 0){ //RENDER_MODE_FACES) {
             //            ofEnableDepthTest();
             ofSetColor(255, 128);
             mesh.drawFaces();
             //            ofDisableDepthTest();
-        } else if(renderModeSelection == RENDER_MODE_WIREFRAME_FULL) {
+        } else if(renderModes.get() == 1){ //RENDER_MODE_WIREFRAME_FULL) {
             mesh.drawWireframe();
-        } else if(renderModeSelection == RENDER_MODE_OUTLINE || renderModeSelection == RENDER_MODE_WIREFRAME_OCCLUDED) {
+        } else if(renderModes.get() == 2 || renderModes.get() == 3){ //RENDER_MODE_OUTLINE || renderModeSelection == RENDER_MODE_WIREFRAME_OCCLUDED) {
             prepareRender(true, true, false);
             glEnable(GL_POLYGON_OFFSET_FILL);
             float lineWidth = ofGetStyle().lineWidth;
-            if(renderModeSelection == RENDER_MODE_OUTLINE) {
+            if(renderModes == 2){ //RENDER_MODE_OUTLINE) {
                 glPolygonOffset(-lineWidth, -lineWidth);
-            } else if(renderModeSelection == RENDER_MODE_WIREFRAME_OCCLUDED) {
+            } else if(renderModes == 3){ //RENDER_MODE_WIREFRAME_OCCLUDED) {
                 glPolygonOffset(+lineWidth, +lineWidth);
             }
             glColorMask(false, false, false, false);
@@ -166,7 +180,7 @@ public:
             if(!cur.hit) {
                 cur.position = cornerMeshImage.getVertex(i);
             } else {
-                ofLine(cur.position, cornerMeshImage.getVertex(i));
+                ofDrawLine(cur.position, cornerMeshImage.getVertex(i));
             }
         }
         
@@ -207,6 +221,7 @@ public:
             mapamok.end();
         }
         
+        if(bShowGui) gui.draw();
         ofDrawBitmapString(ofToString((int) ofGetFrameRate()), 10, ofGetHeight() - 40);
     }
     void loadModel(string filename) {
@@ -255,7 +270,8 @@ public:
             ofToggleFullscreen();
         }
         if(key == '\t') {
-            gui->toggleVisible();
+//            gui->toggleVisible();
+            bShowGui = !bShowGui;
         }
     }
 };
